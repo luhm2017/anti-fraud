@@ -1,0 +1,406 @@
+--===================================================================
+--L卡评分，获取信贷合同数据（过滤无效合同、只包含tnh和yfq产品）	  --1007595 
+--===================================
+create table credit_type_user as 
+select u.mobile,
+t.loan_card_pan,
+c.capital_limit, 
+t.out_range,
+case when substr(c.product_no,1,2) in ('PA','PJ') then 'tnh' 
+     else 'yfq' end as product_type,
+t.PAY_TIME,
+c.start_date,
+c.due_date,
+c.contract_no 
+ from r_creditloan.s_c_loan_apply  a 
+inner join r_creditloan.s_c_apply_user u on u.id = a.id
+inner join creditloan.s_c_loan_contract c on c.apply_id = a.id 
+inner join r_creditloan.s_c_receipt t on t.contract_id = c.id 
+where a.year='2017' and a.month='04' and a.day='10'
+and u.year='2017' and u.month='04' and u.day='10'
+and c.year='2017' and c.month='04' and c.day='10'
+and t.year='2017' and t.month='04' and t.day='10'
+and c.status <> 'F'
+and substr(c.product_no,1,2) in ('PA','PJ','PC','PK')
+and t.pay_time <> 'null';
+
+
+--L卡评分，获取phone最新合同数据 511562
+--======================================================
+create table phone_user_yfq as
+select 
+	b.mobile,
+	b.capital_limit, 
+	b.out_range,
+	b.product_type,
+	b.PAY_TIME,
+	b.start_date,
+	b.due_date,
+	b.contract_no
+ from (
+select 
+    a.*
+from
+  (
+	  select mobile ,PAY_TIME,row_number() over (partition by mobile order by PAY_TIME desc ) rank  
+	   from credit_type_user
+	   where PAY_TIME <> 'null'
+	   group by mobile,PAY_TIME
+  )a
+where a.rank=1) tab,credit_type_user b
+where tab.mobile = b.mobile
+and tab.pay_time = b.pay_time
+and b.product_type = 'yfq';
+
+
+--易分期 手机号 流水号 扩展时间为5年  44472250
+--==============================================
+set hive.exec.parallel=8;
+set hive.exec.reducers.max=200;
+set mapred.reduce.tasks= 200;
+
+create table trade_flow_phone_yfq as
+select 
+ a.contact as phone,    --手机号
+ a.begintime, --开始时间
+ a.endtime,   --结束时间
+ a.amount,    --金额
+ a.fee,       --交易服务费
+ b.busid,     --交易小类 id
+ b.busname,   --交易小类名称
+ c.bustype,   --交易中类
+ c.buscode,	  --交易中类code
+ d.PAY_TIME  --信贷合同放款日期
+ from r_lmps.s_tbl_tradelog a 
+ join lmps.s_tbl_businfo b on a.busid = b.busid
+ join lmps.customer_identifier_tradetype_base c on a.busid = c.busid 
+ join phone_user_yfq d on d.mobile = a.contact
+ where a.retcode = '00'
+ and a.amount <> 'null'
+ and a.contact <> 'null'
+ and a.endtime < d.pay_time
+ and a.endtime > date_sub(d.pay_time,1825); 
+ 
+ 
+  --手机号 易分期  时间段最大化5年
+create table phone_peroid_yfq as
+ select phone,amount/100 as amount,bustype,buscode,endtime,pay_time,
+ (month(pay_time)-month(endtime) )+(year(pay_time)-year(endtime))*12 as peroid
+ from trade_flow_phone_yfq a; 
+ 
+ 
+ 
+ --====================================================
+--分组统计 手机号 易分期 9446144
+--=======================================================================================================
+set hive.exec.parallel=8;
+set hive.exec.reducers.max=200;
+set mapred.reduce.tasks= 200;
+
+create table phone_peroid_statistic_yfq as
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 1 as peroid 
+from phone_peroid_yfq
+where peroid = 1
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 2 as peroid 
+from phone_peroid_yfq
+where peroid = 2
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 3 as peroid 
+from phone_peroid_yfq
+where peroid = 3
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 4 as peroid 
+from phone_peroid_yfq
+where peroid = 4
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 5 as peroid 
+from phone_peroid_yfq
+where peroid = 5
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 6 as peroid 
+from phone_peroid_yfq
+where peroid = 6
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 7 as peroid 
+from phone_peroid_yfq
+where peroid = 7
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 8 as peroid 
+from phone_peroid_yfq
+where peroid = 8
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 9 as peroid 
+from phone_peroid_yfq
+where peroid = 9
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 10 as peroid 
+from phone_peroid_yfq
+where peroid = 10
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 11 as peroid 
+from phone_peroid_yfq
+where peroid = 11
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 12 as peroid 
+from phone_peroid_yfq
+where peroid = 12
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 13 as peroid 
+from phone_peroid_yfq
+where peroid = 13
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 14 as peroid 
+from phone_peroid_yfq
+where peroid = 14
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 15 as peroid 
+from phone_peroid_yfq
+where peroid = 15
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 16 as peroid 
+from phone_peroid_yfq
+where peroid = 16
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 17 as peroid 
+from phone_peroid_yfq
+where peroid = 17
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 18 as peroid 
+from phone_peroid_yfq
+where peroid = 18
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 19 as peroid 
+from phone_peroid_yfq
+where peroid = 19
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 20 as peroid 
+from phone_peroid_yfq
+where peroid = 20
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 21 as peroid 
+from phone_peroid_yfq
+where peroid = 21
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 22 as peroid 
+from phone_peroid_yfq
+where peroid = 22
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 23 as peroid 
+from phone_peroid_yfq
+where peroid = 23
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 24 as peroid 
+from phone_peroid_yfq
+where peroid = 24
+group by phone,buscode
+union all
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 25 as peroid 
+from phone_peroid_yfq
+where peroid = 25
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 26 as peroid 
+from phone_peroid_yfq
+where peroid = 26
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 27 as peroid 
+from phone_peroid_yfq
+where peroid = 27
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 28 as peroid 
+from phone_peroid_yfq
+where peroid = 28
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 29 as peroid 
+from phone_peroid_yfq
+where peroid = 29
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 30 as peroid 
+from phone_peroid_yfq
+where peroid = 30
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 31 as peroid 
+from phone_peroid_yfq
+where peroid = 31
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 32 as peroid 
+from phone_peroid_yfq
+where peroid = 32
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 33 as peroid 
+from phone_peroid_yfq
+where peroid = 33
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 34 as peroid 
+from phone_peroid_yfq
+where peroid = 34
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 35 as peroid 
+from phone_peroid_yfq
+where peroid = 35
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 36 as peroid 
+from phone_peroid_yfq
+where peroid = 36
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 37 as peroid 
+from phone_peroid_yfq
+where peroid = 37
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 38 as peroid 
+from phone_peroid_yfq
+where peroid = 38
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 39 as peroid 
+from phone_peroid_yfq
+where peroid = 39
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 40 as peroid 
+from phone_peroid_yfq
+where peroid = 40
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 41 as peroid 
+from phone_peroid_yfq
+where peroid = 41
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 42 as peroid 
+from phone_peroid_yfq
+where peroid = 42
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 43 as peroid 
+from phone_peroid_yfq
+where peroid = 43
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 44 as peroid 
+from phone_peroid_yfq
+where peroid = 44
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 45 as peroid 
+from phone_peroid_yfq
+where peroid = 45
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 46 as peroid 
+from phone_peroid_yfq
+where peroid = 46
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 47 as peroid 
+from phone_peroid_yfq
+where peroid = 47
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 48 as peroid 
+from phone_peroid_yfq
+where peroid = 48
+group by phone,buscode
+union all
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 49 as peroid 
+from phone_peroid_yfq
+where peroid = 49
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 50 as peroid 
+from phone_peroid_yfq
+where peroid = 50
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 51 as peroid 
+from phone_peroid_yfq
+where peroid = 51
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 52 as peroid 
+from phone_peroid_yfq
+where peroid = 52
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 53 as peroid 
+from phone_peroid_yfq
+where peroid = 53
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 54 as peroid 
+from phone_peroid_yfq
+where peroid = 54
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 55 as peroid 
+from phone_peroid_yfq
+where peroid = 55
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 56 as peroid 
+from phone_peroid_yfq
+where peroid = 56
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 57 as peroid 
+from phone_peroid_yfq
+where peroid = 57
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 58 as peroid 
+from phone_peroid_yfq
+where peroid = 58
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 59 as peroid 
+from phone_peroid_yfq
+where peroid = 59
+group by phone,buscode
+union all  
+select phone,buscode,sum(amount) as sum_amount,avg(amount) as avg_amount,max(amount) as max_amount,min(amount) as min_amount,count(1) as sum_cnt, 60 as peroid 
+from phone_peroid_yfq
+where peroid = 60
+group by phone,buscode; 
+
+--==========================
+transfer_phone_tag_yfq  7张表
+--======================
+
+phone_variable_yfq  7500
+

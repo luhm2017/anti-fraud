@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<envs>
+    <env>
+        <redis>
+            <queuename>dataPlatform.anti_fraud.order_monitor</queuename>
+            <nodes>
+                <node host="10.0.8.170" port="6800"/>
+                <node host="10.0.8.170" port="6801"/>
+                <node host="10.0.8.171" port="6800"/>
+                <node host="10.0.8.171" port="6801"/>
+                <node host="10.0.8.172" port="6800"/>
+                <node host="10.0.8.172" port="6801"/>
+            </nodes>
+        </redis>
+        <neo4j-pool>
+            <url>10.16.65.32:7687</url>
+            <user>neo4j</user>
+            <passwd>123456</passwd>
+            <driverClass>org.neo4j.jdbc.Driver</driverClass>
+            <!--活跃的查询线程数量-->
+            <maxQueryActive>10</maxQueryActive>
+            <!--分页的大小-->
+            <page_size>100000</page_size>
+            <!--单个订单的查询结果上限，如果超过该阈值则特别对待-->
+            <threshold>99999</threshold>
+        </neo4j-pool>
+        <mysql>
+            <url>jdbc:mysql://10.16.65.31:3306/anti_fraud</url>
+            <user>graphdb</user>
+            <passwd>lkl_123</passwd>
+        </mysql>
+        <!--每一批次计算订单号的上限-->
+        <batch_order_num>80</batch_order_num>
+        <!--每一批次计算的二度关系的上限数量-->
+        <compute_batch_size>1500000</compute_batch_size>
+        <!--缓存的行为表数据刷新时间，单位小时-->
+        <performance_update_times>4</performance_update_times>
+        <!--数据分片的数量，用于计算调优,0为默认大小-->
+        <performance_partintion_num>18</performance_partintion_num>
+        <!--join完成后的表的分区数,0为默认分区-->
+        <joined_partiontion_num>0</joined_partiontion_num>
+    </env>
+</envs>

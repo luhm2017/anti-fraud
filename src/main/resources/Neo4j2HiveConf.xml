@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<envs>
+    <env>
+        <redis>
+            <queuename>dataPlatform.anti_fraud.order_monitor</queuename>
+            <nodes>
+                <node host="10.0.8.170" port="6800"/>
+                <node host="10.0.8.170" port="6801"/>
+                <node host="10.0.8.171" port="6800"/>
+                <node host="10.0.8.171" port="6801"/>
+                <node host="10.0.8.172" port="6800"/>
+                <node host="10.0.8.172" port="6801"/>
+            </nodes>
+        </redis>
+        <neo4j-pool>
+            <url>10.16.65.32:7687</url>
+            <user>neo4j</user>
+            <passwd>123456</passwd>
+            <driverClass>org.neo4j.jdbc.Driver</driverClass>
+            <!--活跃的查询线程数量-->
+            <maxQueryActive>10</maxQueryActive>
+            <!--分页的大小-->
+            <page_size>100000</page_size>
+            <!--单个订单的查询结果上限，如果超过该阈值则特别对待-->
+            <threshold>99999</threshold>
+        </neo4j-pool>
+        <mysql>
+            <url>jdbc:mysql://10.19.65.17:54321/antifraud</url>
+            <user>antifraud</user>
+            <passwd>Antifraud$123</passwd>
+        </mysql>
+        <!--每次计算的间隔时间，单位秒-->
+        <writeBatchTime>180</writeBatchTime>
+        <degree1HTName>one_degree_data_new</degree1HTName>
+        <degree2HTName>two_degree_data_new</degree2HTName>
+    </env>
+</envs>
